@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios, { isAxiosError } from 'axios'
 import chalk from 'chalk'
 import { AbiCoder, ethers, JsonRpcProvider } from 'ethers'
 import fs from 'fs'
@@ -14,7 +14,7 @@ const config = {
 const proxies = fs.readFileSync('./proxies.txt').toString().split('\n').map(proxy => proxy.trim()).filter(Boolean)
 const keys = fs.readFileSync('./keys.txt').toString().split('\n').map(key => key.trim()).filter(Boolean)
 
-const order = mix(proxies.map((_, i) => i))
+const order = mix(keys.map((_, i) => i))
 const provider = new JsonRpcProvider(config.RPC)
 const abiCoder = AbiCoder.defaultAbiCoder()
 
@@ -34,8 +34,8 @@ async function main() {
 
   for (let i = 0; i < order.length; i++) {
     const index = order[i]
-    const proxy = proxies[index]
     const key = keys[index]
+    const proxy = proxies[i % proxies.length]
 
     const signer = new ethers.Wallet(key).connect(provider)
     console.log(`\n👛 start for ${chalk.bold(signer.address)}`)
@@ -73,25 +73,24 @@ async function main() {
         'sec-fetch-site': 'same-origin',
       },
     })
-
-    const { data } = await transport.post('api/checkNftProof', { address: signer.address })
-    if (data.result) {
-      try {
-        const tx = await signer.sendTransaction({
-          to: '0x8dc80a209a3362f0586e6c116973bb6908170c84',
-          data: '0xb77a147b' + abiCoder.encode([ 'bytes32[]' ], [ data.result ]).slice(2),
-        })
-        console.log(`   send tx https://basescan.org/tx/${tx.hash}`)
-        await tx.wait()
-        console.log('🎉 successfully minted')
-        await saveResult(signer.address, 'minted')
-      } catch (e) {
+    try {
+      const { data } = await transport.post('api/checkNftProof', { address: signer.address })
+      const tx = await signer.sendTransaction({
+        to: '0x8dc80a209a3362f0586e6c116973bb6908170c84',
+        data: '0xb77a147b' + abiCoder.encode([ 'bytes32[]' ], [ data.result ]).slice(2),
+      })
+      console.log(`   send tx https://basescan.org/tx/${tx.hash}`)
+      await tx.wait()
+      console.log('🎉 successfully minted')
+      await saveResult(signer.address, 'minted')
+    } catch (e) {
+      if (isAxiosError(e) && e.response.status === 404) {
+        console.log('🙅‍♂️ no nft proof')
+        await saveResult(signer.address, 'skipped')
+      } else {
         console.log('😔 failed to mint', e)
         await saveResult(signer.address, 'failed')
       }
-    } else {
-      console.log('🙅‍♂️no nft proof')
-      await saveResult(signer.address, 'skipped')
     }
 
     if (i < order.length - 1) {
