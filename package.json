@@ -1,0 +1,17 @@
+{
+  "private": true,
+  "scripts": {
+    "start": "node -r esbuild-register src/index.ts"
+  },
+  "dependencies": {
+    "@types/gradient-string": "^1.1.5",
+    "@types/node": "^20.11.24",
+    "axios": "^1.6.7",
+    "chalk": "^5.3.0",
+    "esbuild": "^0.20.1",
+    "esbuild-register": "^3.5.0",
+    "ethers": "^6.11.1",
+    "gradient-string": "^2.0.2",
+    "hpagent": "^1.2.0"
+  }
+}
